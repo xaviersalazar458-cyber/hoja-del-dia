@@ -129,6 +129,14 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
 
 /* Estado vacío */
 .privacy{margin:0 0 12px;color:var(--muted);font-size:14px;max-width:60ch}
+.account{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.acc-info{display:flex;gap:10px;align-items:center;min-width:0}
+.acc-info img{width:36px;height:36px;border-radius:50%;flex:none}
+.acc-info div{display:flex;flex-direction:column;min-width:0}
+.acc-info span{font-size:13px;color:var(--muted)}
+#authBtn{display:inline-flex;gap:8px;align-items:center}
+#authBtn[hidden]{display:none!important}
+#authBtn svg{background:#fff;border-radius:50%;padding:2px;box-sizing:content-box}
 .backup{display:flex;gap:8px;flex-wrap:wrap}
 .backup label{cursor:pointer}
 .welcome{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--teal-soft);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
@@ -163,7 +171,7 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
       <strong id="sumTitle">0 de 0 hecho</strong>
       <span id="sumSub">Añade tus prioridades y tareas para empezar.</span>
     </div>
-    <div class="now"><b id="clock">--:--</b><span id="status" class="status">Guardado en este móvil</span></div>
+    <div class="now"><b id="clock">--:--</b><span id="status" class="status">Guardado en este dispositivo</span></div>
   </div>
 
   <div class="welcome" id="welcome" hidden>
@@ -214,8 +222,15 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
       </section>
 
       <section aria-labelledby="h-data">
-        <div class="sec-head"><h2 id="h-data">Tus datos</h2><span class="meta">solo en este dispositivo</span></div>
-        <p class="privacy">Todo lo que escribes se guarda únicamente en este móvil. No se envía a ningún servidor. Haz una copia de vez en cuando por si cambias de móvil o borras los datos del navegador.</p>
+        <div class="sec-head"><h2 id="h-data">Tus datos</h2><span class="meta" id="dataMeta">cuenta y copias</span></div>
+        <div class="account" id="account">
+          <div class="acc-info">
+            <img id="accPhoto" alt="" hidden referrerpolicy="no-referrer">
+            <div><strong id="accName">Sin cuenta</strong><span id="accSub">Los datos se guardan solo en este dispositivo.</span></div>
+          </div>
+          <button class="btn primary" id="authBtn" hidden><svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg><span id="authLabel">Entrar con Google</span></button>
+        </div>
+        <p class="privacy" id="privacyText">Sin iniciar sesión, todo se guarda únicamente en este dispositivo. Si entras con Google, tus días se sincronizan entre el móvil y el iPad, y solo tu cuenta puede leerlos.</p>
         <div class="backup">
           <button class="btn" id="exportBtn">Guardar copia</button>
           <label class="btn" for="importFile">Restaurar copia</label>
@@ -252,10 +267,34 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
     get(k){ try{ return norm(JSON.parse(localStorage.getItem('hdd-'+k))); }catch(e){ return emptyDay(); } },
     set(k,v){ try{ localStorage.setItem('hdd-'+k, JSON.stringify(v)); return true; }catch(e){ return false; } }
   };
-  async function loadDay(k){ return local.get(k); }
-  async function writeDay(k,v){ setStatus(local.set(k,v) ? 'Guardado en este móvil' : 'No se pudo guardar: el almacenamiento está lleno o bloqueado'); }
+  let cloud = null, unwatch = null;
+  const localKeys = () => { const out=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(/^hdd-\d{4}-\d{2}-\d{2}$/.test(k)) out.push(k.slice(4)); } }catch(e){} return out; };
+  const savedText = () => cloud ? 'Sincronizado con Google' : 'Guardado en este dispositivo';
+  async function loadDay(k){
+    if(cloud){ try{ const d = await cloud.load(k); if(d) { const n=norm(d); local.set(k,n); return n; } return local.get(k); }catch(e){} }
+    return local.get(k);
+  }
+  async function writeDay(k,v){
+    if(!local.set(k,v)){ setStatus('No se pudo guardar: el almacenamiento está lleno o bloqueado'); }
+    if(!cloud){ setStatus(savedText()); return; }
+    try{ await cloud.save(k, JSON.parse(JSON.stringify(v))); setStatus(savedText()); }
+    catch(e){ setStatus('Sin conexión: se sincronizará al volver'); }
+  }
+  function focusState(){ const a=document.activeElement; return (a && a.id && /^(slot-|prio-|notes|newTask)/.test(a.id)) ? {id:a.id, s:a.selectionStart, e:a.selectionEnd} : null; }
+  function restoreFocus(f){ if(!f) return; const el=$(f.id); if(!el) return; el.focus({preventScroll:true}); try{ if(f.s!=null) el.setSelectionRange(f.s,f.e); }catch(e){} }
+  function watchCurrent(){
+    if(unwatch){ unwatch(); unwatch=null; }
+    if(!cloud) return;
+    const k=current;
+    unwatch = cloud.watch(k, data => {
+      if(k!==current || saveTimer) return;           // hay cambios locales sin enviar: ganan los locales
+      const n = data ? norm(data) : null;
+      if(!n || JSON.stringify(n)===JSON.stringify(day)) return;
+      day=n; local.set(k,n); const f=focusState(); renderAll(); restoreFocus(f);
+    });
+  }
   let saveTimer=null;
-  function save(){ const k=current, v=day; local.set(k,v); clearTimeout(saveTimer); setStatus('Guardando…'); saveTimer=setTimeout(()=>writeDay(k,v),500); }
+  function save(){ const k=current, v=day; local.set(k,v); clearTimeout(saveTimer); setStatus('Guardando…'); saveTimer=setTimeout(()=>{ saveTimer=null; writeDay(k,v); },500); }
   function setStatus(t){ $('status').textContent=t; }
 
   /* ---------- Render ---------- */
@@ -333,7 +372,7 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
 
   async function go(k){
     clearTimeout(saveTimer); if(saveTimer){ writeDay(current, day); saveTimer=null; }
-    current=k; day = await loadDay(k); renderAll();
+    current=k; day = await loadDay(k); renderAll(); watchCurrent();
   }
   const shift = n => { const d=fromKey(current); d.setDate(d.getDate()+n); go(key(d)); };
 
@@ -380,7 +419,7 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
   /* Copia de seguridad */
   function allData(){ const out={}; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(/^hdd-\d{4}-\d{2}-\d{2}$/.test(k)) out[k.slice(4)]=JSON.parse(localStorage.getItem(k)); } }catch(e){} return out; }
   $('exportBtn').onclick=async()=>{
-    const json=JSON.stringify({app:'hoja-del-dia',version:1,exported:new Date().toISOString(),days:allData()},null,2);
+    const json=JSON.stringify({app:'hoja-del-dia',version:1,exported:new Date().toISOString(),days: cloud ? await cloud.all().catch(()=>allData()) : allData()},null,2);
     const name='hoja-del-dia-'+key(new Date())+'.json';
     const file=new File([json],name,{type:'application/json'});
     try{ if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:'Copia de Hoja del Día'}); toast('Copia lista'); return; } }catch(e){ if(e && e.name==='AbortError') return; }
@@ -391,10 +430,33 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
     try{
       const data=JSON.parse(await f.text());
       if(!data || data.app!=='hoja-del-dia' || typeof data.days!=='object') throw new Error();
-      let n=0; for(const [k,v] of Object.entries(data.days)){ if(/^\d{4}-\d{2}-\d{2}$/.test(k)){ local.set(k,norm(v)); n++; } }
+      let n=0; for(const [k,v] of Object.entries(data.days)){ if(/^\d{4}-\d{2}-\d{2}$/.test(k)){ const d=norm(v); local.set(k,d); if(cloud) cloud.save(k,d).catch(()=>{}); n++; } }
       day=local.get(current); renderAll(); toast(n+(n===1?' día restaurado':' días restaurados'));
     }catch(err){ toast('Ese archivo no es una copia de Hoja del Día'); }
   });
+
+  /* ---------- Cuenta (la usa sync.js) ---------- */
+  window.hdd = {
+    async connect(api){
+      cloud = api;
+      setStatus('Sincronizando…');
+      try{
+        const remote = await api.all();
+        const pending = localKeys().filter(k => !(k in remote));
+        for(const k of pending){ const d=local.get(k); if(!isEmpty(d)) await api.save(k, d); }
+        for(const [k,v] of Object.entries(remote)) local.set(k, norm(v));
+        toast(pending.length ? 'Sesión iniciada · '+pending.length+(pending.length===1?' día subido':' días subidos') : 'Sesión iniciada');
+      }catch(e){ toast('Sesión iniciada; se sincronizará al tener conexión'); }
+      day = await loadDay(current); renderAll(); watchCurrent(); setStatus(savedText());
+    },
+    disconnect(){
+      if(unwatch){ unwatch(); unwatch=null; }
+      cloud = null;
+      localKeys().forEach(k => { try{ localStorage.removeItem('hdd-'+k); }catch(e){} });
+      day = emptyDay(); renderAll(); setStatus(savedText());
+    },
+    toast
+  };
 
   /* ---------- Arranque ---------- */
   day = local.get(current); renderAll();
@@ -403,5 +465,6 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ tick(); renderAgenda(); } });
 })();
 </script>
+<script type="module" src="sync.js"></script>
 </body>
 </html>
