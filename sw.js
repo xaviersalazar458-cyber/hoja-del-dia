@@ -1,5 +1,5 @@
 // Hoja del Día — funciona sin conexión. Sube CACHE al cambiar los archivos.
-const CACHE = 'hoja-del-dia-v2';
+const CACHE = 'hoja-del-dia-v3';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './sync.js', './firebase-config.js'];
 
 self.addEventListener('install', e => {
