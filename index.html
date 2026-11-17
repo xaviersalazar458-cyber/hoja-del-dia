@@ -461,7 +461,7 @@ textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line
   /* ---------- Arranque ---------- */
   day = local.get(current); renderAll();
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
-  if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+  if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(()=>{})); }
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ tick(); renderAgenda(); } });
 })();
 </script>
